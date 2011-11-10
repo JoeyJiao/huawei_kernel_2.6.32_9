@@ -189,6 +189,15 @@ static struct clkctl_acpu_speed pll0_196_pll1_960_pll2_1056[] = {
 /* 7x27 normal with GSM capable modem */
 static struct clkctl_acpu_speed pll0_245_pll1_960_pll2_1200[] = {
 	{ 0, 19200, ACPU_PLL_TCXO, 0, 0, 19200, 0, 0, 30720 },
+#ifdef UNDERCLOCK_30720
+       { 1, 30720, ACPU_PLL_0, 4, 7,  15360, 1, 1,  30720 },
+#endif
+#ifdef UNDERCLOCK_49152
+       { 1, 49152, ACPU_PLL_0, 4, 4,  24576, 1, 2,  30720 },
+#endif
+#ifdef UNDERCLOCK_61440
+       { 1, 61440, ACPU_PLL_0, 4, 3,  30720, 1, 2,  30720 },
+#endif
 	{ 0, 120000, ACPU_PLL_1, 1, 7,  60000, 1, 3,  61440 },
 	{ 1, 122880, ACPU_PLL_0, 4, 1,  61440, 1, 3,  61440 },
 	{ 0, 200000, ACPU_PLL_2, 2, 5,  66667, 2, 4,  61440 },
@@ -539,6 +548,16 @@ static void acpuclk_set_div(const struct clkctl_acpu_speed *hunt_s) {
     a11_div=0;
 
     writel(0x27, MSM_CLK_CTL_BASE+0x33C);
+
+    udelay(50);
+
+  }
+
+  if(hunt_s->a11clk_khz==768000) {
+
+    a11_div=0;
+
+    writel(0x28, MSM_CLK_CTL_BASE+0x33C);
 
     udelay(50);
 
