@@ -182,7 +182,6 @@ void sha_transform(__u32 *digest, const char *data, __u32 *array)
   digest[3] += D;
   digest[4] += E;
 }
-EXPORT_SYMBOL(sha_transform);
 
 /**
  * sha_init - initialize the vectors for a SHA1 digest
