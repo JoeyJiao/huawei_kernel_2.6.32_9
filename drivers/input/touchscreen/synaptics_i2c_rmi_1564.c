@@ -568,7 +568,7 @@ static void synaptics_rmi4_work_func(struct work_struct *work)
                 input_report_abs(ts->input_dev, ABS_X, x);
 				input_report_abs(ts->input_dev, ABS_Y, y);
 
-				input_report_abs(ts->input_dev, ABS_PRESSURE, z);
+				input_report_abs(ts->input_dev, ABS_MT_PRESSURE, z);
 				/* delete the width */
 				//input_report_abs(ts->input_dev, ABS_TOOL_WIDTH, z);
                 input_report_key(ts->input_dev, BTN_TOUCH, finger_status);
@@ -1022,7 +1022,7 @@ static int synaptics_rmi4_probe(
           {
             input_set_abs_params(ts->input_dev, ABS_X, 0, lcd_x, 0, 0);
             input_set_abs_params(ts->input_dev, ABS_Y, 0, lcd_y, 0, 0);
-            input_set_abs_params(ts->input_dev, ABS_PRESSURE, 0, 255, 0, 0);
+            input_set_abs_params(ts->input_dev, ABS_MT_PRESSURE, 0, 255, 0, 0);
             input_set_abs_params(ts->input_dev, ABS_TOOL_WIDTH, 0, 255, 0, 0);
                 
           }

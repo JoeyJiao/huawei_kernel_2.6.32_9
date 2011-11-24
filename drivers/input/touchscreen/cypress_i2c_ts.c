@@ -100,12 +100,13 @@ static uint8_t touch_key_value_normal[] = {KEY_BACK, KEY_MENU, KEY_HOME, KEY_SEA
 static uint8_t touch_key_value_u8160[] = {KEY_HOME, KEY_MENU, KEY_BACK, KEY_SEARCH, KEY_RESERVED};
 
 static char name[30];
-static struct i2c_client *g_client = NULL;
-static struct cypress_ts_data *ts = NULL;
 /* this codes update cypress`s touch  */
 #ifdef CONFIG_CYPRESS_UPDATE_TS_FIRMWARE
+static struct i2c_client *g_client = NULL;
+static struct cypress_ts_data *ts = NULL;
 #define CYPRESS_FILE_LENGTH 184320		/* MAX file length */
  
+#ifdef CONFIG_CYPRESS_RESTORE_FIRMWARE
 static ssize_t cyp_update_firmware_show(struct kobject *kobj, 
 struct kobj_attribute *attr,char *buf);
 static ssize_t cyp_update_firmware_store(struct kobject *kobj, 
@@ -115,12 +116,15 @@ static int i2c_update_firmware(void);
 static int cyp_i2c_transfer(char *buf, uint8_t num, uint8_t flag);
 static int chang_ASCII_byte(uint8_t msb_data, uint8_t lsb_data, uint8_t *ret_data);
 static int chang_ASCII(uint8_t *input_data);
+#endif
 
+#ifdef CONFIG_CYPRESS_RESTORE_FIRMWARE
 static struct kobj_attribute cyp_update_firmware_attribute = {
 	.attr = {.name = "update_firmware", .mode = 0666},
 	.show = cyp_update_firmware_show,
 	.store = cyp_update_firmware_store,
 };
+
 static  int cyp_ts_firmware_file(void)
 {
 	int ret;
@@ -414,9 +418,10 @@ static int chang_ASCII(uint8_t *input_data)
 	}
 }
 #endif
+#endif
 static void cypress_ts_work_func(struct work_struct *work)
 {
-	int i,k;
+	int i;
 	int ret;
 	int bad_data = 0;
 	struct i2c_msg msg[2];
@@ -460,6 +465,7 @@ static void cypress_ts_work_func(struct work_struct *work)
 			break;
 		}		
 #ifdef TS_DEBUG
+	int k;
         /*printf debug info*/
         for(k=0; k < sizeof(buf); k++)
         {
@@ -472,6 +478,7 @@ static void cypress_ts_work_func(struct work_struct *work)
 		position[0][1] = buf[4] | (uint16_t)(buf[3] ) << 8; //this is 1st point y positon
 		position[1][0] = buf[8] | (uint16_t)(buf[7]) << 8;  //this is 2st point x positon
 		position[1][1] = buf[10] | (uint16_t)(buf[9] ) << 8;   //this is 2st point y positon     
+	CYPRESS_DEBUG("JOEY cypress position=%d,%d,%d,%d",position[0][0],position[0][1],position[1][0],position[1][1]);
 		z = buf[5];//reading pressure register 
 		touch1_z = buf[5];
 		key_info = buf[0x0e] & 0x0f;//button status
@@ -502,7 +509,7 @@ static void cypress_ts_work_func(struct work_struct *work)
             {
                 CYPRESS_DEBUG("Touch_Area: touch release!! \n");
                 ts->is_first_point = true;
-                input_report_abs(ts->input_dev, ABS_PRESSURE, z);
+                input_report_abs(ts->input_dev, ABS_MT_PRESSURE, z);
                 input_report_abs(ts->input_dev, ABS_TOOL_WIDTH, z>>5);
                 input_report_key(ts->input_dev, BTN_TOUCH, 0);	
                 input_sync(ts->input_dev);
@@ -534,7 +541,7 @@ static void cypress_ts_work_func(struct work_struct *work)
                     {
                         CYPRESS_DEBUG("Touch_Area: touch release!! \n");
                         ts->is_first_point = true;
-                        input_report_abs(ts->input_dev, ABS_PRESSURE, z);
+                        input_report_abs(ts->input_dev, ABS_MT_PRESSURE, z);
                         input_report_abs(ts->input_dev, ABS_TOOL_WIDTH, w);
                         input_report_key(ts->input_dev, BTN_TOUCH, 0);
                         input_sync(ts->input_dev);
@@ -549,7 +556,7 @@ static void cypress_ts_work_func(struct work_struct *work)
 			input_report_abs(ts->input_dev, ABS_X, position[0][0]);
 			input_report_abs(ts->input_dev, ABS_Y, position[0][1]);
 		}
-		input_report_abs(ts->input_dev, ABS_PRESSURE, z);
+		input_report_abs(ts->input_dev, ABS_MT_PRESSURE, z);
 		input_report_abs(ts->input_dev, ABS_TOOL_WIDTH, z>>5);
 		input_report_key(ts->input_dev, BTN_TOUCH, 1);
 		
@@ -581,70 +588,7 @@ static void cypress_ts_work_func(struct work_struct *work)
 		}
 		ts->reported_finger_count = input_info;
 		input_sync(ts->input_dev);
-				
-		/*if (input_info == 1) //single point touch
-		{
-		CYPRESS_DEBUG("Touch_Area: X = %d Y = %d \n",position[0][0],position[0][1]);	        
-			if (ts->is_first_point) 
-			{
-				input_report_abs(ts->input_dev, ABS_X, position[0][0]);
-				input_report_abs(ts->input_dev, ABS_Y, position[0][1]);
-				input_report_abs(ts->input_dev, ABS_PRESSURE, z);
-				input_report_abs(ts->input_dev, ABS_TOOL_WIDTH, z>>5);
-				input_report_key(ts->input_dev, BTN_TOUCH, 1);
-				input_sync(ts->input_dev);
-				ts->last_x = position[0][0];
-				ts->last_y = position[0][1];
-				ts->is_first_point = false;
-			}
-			else 
-			{
-				 if (((position[0][0]-ts->last_x) >= TS_X_OFFSET) 
-					     || ((ts->last_x-position[0][0]) >= TS_X_OFFSET) 			
-					     || ((position[0][1]-ts->last_y) >= TS_Y_OFFSET) 
-					     || ((ts->last_y-position[0][1]) >= TS_Y_OFFSET)) 
-				 {
-					input_report_abs(ts->input_dev, ABS_X, position[0][0]);
-					input_report_abs(ts->input_dev, ABS_Y, position[0][1]);	
-					input_report_abs(ts->input_dev, ABS_PRESSURE, z);
-					input_report_abs(ts->input_dev, ABS_TOOL_WIDTH, z>>5);
-					input_report_key(ts->input_dev, BTN_TOUCH, 1);
-					input_sync(ts->input_dev);
-					ts->last_x = position[0][0];
-					ts->last_y = position[0][1];
-				}
-			}
-        }
-		
-		
-		if(ts->support_multi_touch)
-		{
-			input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, touch1_z);
-			input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, touch1_z>>5);
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_X, position[0][0]);
-			input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, position[0][1]);
-			input_mt_sync(ts->input_dev);
 
-			if ((input_info == 2) || (input_info == 3))
-			{
-				input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, touch1_z);
-				input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, touch1_z>>5);
-				input_report_abs(ts->input_dev, ABS_MT_POSITION_X, position[1][0]);
-				input_report_abs(ts->input_dev, ABS_MT_POSITION_Y, position[1][1]);
-				input_mt_sync(ts->input_dev);
-			} 
-			else if (ts->reported_finger_count > 1) 
-			{
-				input_report_abs(ts->input_dev, ABS_MT_TOUCH_MAJOR, 0);
-				input_report_abs(ts->input_dev, ABS_MT_WIDTH_MAJOR, 0);
-				input_mt_sync(ts->input_dev);
-			}
-			ts->reported_finger_count = input_info;
-			
-			input_sync(ts->input_dev);
-				
-
-		}*/
 	}
 	if (ts->use_irq)
 	{
@@ -850,8 +794,7 @@ static int cypress_ts_probe(struct i2c_client *client, const struct i2c_device_i
 	INIT_WORK(&ts->work, cypress_ts_work_func);
 
     ts->is_first_point = true;
- //   if(machine_is_msm7x25_c8500() || machine_is_msm7x25_c8600())
-	if(machine_is_msm7x25_c8500())
+    if(machine_is_msm7x25_c8500() || machine_is_msm7x25_c8600())
 	  ts->support_multi_touch = true;  
     else
       ts->support_multi_touch = false;
@@ -897,7 +840,7 @@ static int cypress_ts_probe(struct i2c_client *client, const struct i2c_device_i
 	set_bit(EV_ABS, ts->input_dev->evbit);
 	input_set_abs_params(ts->input_dev, ABS_X, 0, ts->x_max, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_Y, 0, ts->y_max, 0, 0);
-	input_set_abs_params(ts->input_dev, ABS_PRESSURE, 0, 255, 0, 0);
+	input_set_abs_params(ts->input_dev, ABS_MT_PRESSURE, 0, 255, 0, 0);
 	/*modify width reported max value*/
 	if(machine_is_msm7x25_c8600() )
 	{
@@ -1006,7 +949,7 @@ static int cypress_ts_probe(struct i2c_client *client, const struct i2c_device_i
     
 	printk(KERN_INFO "cypress_ts_probe: Start touchscreen %s in %s mode\n", ts->input_dev->name, ts->use_irq ? "interrupt" : "polling");
 
-#ifdef CONFIG_CYPRESS_UPDATE_TS_FIRMWARE 
+#ifdef CONFIG_CYPRESS_RESTORE_FIRMWARE
 restore_firmware:
 	g_client = client;
 	{
